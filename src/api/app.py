@@ -24,8 +24,8 @@ from src.utils.config import get_config
 
 # Import existing step modules
 from src.core import step1_frame_extraction as step1
-from src.core import step2_prompt_enhancement as step2
-from src.core import step3_single_output as step3
+from src.core import step2_gemini_direct as step2
+from src.core import step3_nano_banana as step3
 from src.core import step4_single_output as step4
 from src.core import step5_with_auto_upload as step5
 
@@ -129,11 +129,11 @@ def process_video_pipeline(job_id, video_path, prompt):
         if not os.path.exists(first_frame_path) or os.path.getsize(first_frame_path) == 0:
             raise Exception(f"First frame file is invalid or empty: {first_frame_path}")
 
-        openrouter_key = config.OPENROUTER_API_KEY
-        if not openrouter_key:
-            raise Exception("OPENROUTER_API_KEY not found in environment variables")
+        gemini_key = config.GEMINI_API_KEY
+        if not gemini_key:
+            raise Exception("GEMINI_API_KEY not found in environment variables")
 
-        enhancer = step2.PromptEnhancer(openrouter_key)
+        enhancer = step2.PromptEnhancer(gemini_key)
         try:
             result2 = enhancer.enhance_prompt(prompt, first_frame_path)
         finally:
