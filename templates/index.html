@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Editor - Transform Your Videos with AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-video"></i>
+                <h1>AI Video Editor</h1>
+            </div>
+            <p class="tagline">Transform your videos with advanced AI technology</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Upload Section -->
+            <section class="upload-section" id="uploadSection">
+                <div class="upload-card">
+                    <h2><i class="fas fa-cloud-upload-alt"></i> Upload Your Video</h2>
+                    <div class="upload-area" id="uploadArea">
+                        <input type="file" id="videoInput" accept="video/*" hidden>
+                        <div class="upload-prompt" id="uploadPrompt">
+                            <i class="fas fa-file-video fa-3x"></i>
+                            <p>Drag & drop your video here</p>
+                            <span>or</span>
+                            <button class="btn btn-primary" onclick="document.getElementById('videoInput').click()">
+                                Browse Files
+                            </button>
+                            <small>Supported formats: MP4, AVI, MOV, MKV (Max 500MB)</small>
+                        </div>
+                        <div class="video-preview" id="videoPreview" style="display: none;">
+                            <video id="previewVideo" controls></video>
+                            <div class="video-info">
+                                <p id="videoName"></p>
+                                <p id="videoSize"></p>
+                                <button class="btn btn-secondary btn-sm" onclick="removeVideo()">
+                                    <i class="fas fa-times"></i> Remove
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Prompt Section -->
+            <section class="prompt-section" id="promptSection" style="display: none;">
+                <div class="prompt-card">
+                    <h2><i class="fas fa-magic"></i> Describe Your Transformation</h2>
+                    <div class="prompt-input-group">
+                        <textarea
+                            id="userPrompt"
+                            class="prompt-input"
+                            placeholder="E.g., 'Make him wear a business suit', 'Change the background to a beach', 'Add sunglasses to everyone'"
+                            rows="3"></textarea>
+                        <div class="prompt-suggestions">
+                            <p>Quick suggestions:</p>
+                            <div class="suggestion-chips">
+                                <button class="chip" onclick="setPrompt('Make everyone wear formal business attire')">Business Attire</button>
+                                <button class="chip" onclick="setPrompt('Change the background to a tropical beach')">Beach Background</button>
+                                <button class="chip" onclick="setPrompt('Add sunglasses to all people')">Add Sunglasses</button>
+                                <button class="chip" onclick="setPrompt('Convert to black and white vintage style')">Vintage Style</button>
+                                <button class="chip" onclick="setPrompt('Make it look like a cartoon animation')">Cartoon Style</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary btn-lg" id="processBtn" onclick="startProcessing()">
+                        <i class="fas fa-play"></i> Start Processing
+                    </button>
+                </div>
+            </section>
+
+            <!-- Processing Pipeline -->
+            <section class="pipeline-section" id="pipelineSection" style="display: none;">
+                <div class="pipeline-card">
+                    <h2><i class="fas fa-cog"></i> Processing Pipeline</h2>
+                    <div class="pipeline-steps">
+                        <div class="step" id="step1">
+                            <div class="step-icon">
+                                <i class="fas fa-film"></i>
+                            </div>
+                            <div class="step-content">
+                                <h3>Frame Extraction</h3>
+                                <p>Extracting key frames from your video...</p>
+                                <div class="progress-bar">
+                                    <div class="progress" id="progress1"></div>
+                                </div>
+                            </div>
+                            <div class="step-status" id="status1">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                        </div>
+
+                        <div class="step" id="step2">
+                            <div class="step-icon">
+                                <i class="fas fa-brain"></i>
+                            </div>
+                            <div class="step-content">
+                                <h3>Prompt Enhancement</h3>
+                                <p>AI is analyzing and enhancing your request...</p>
+                                <div class="progress-bar">
+                                    <div class="progress" id="progress2"></div>
+                                </div>
+                            </div>
+                            <div class="step-status" id="status2">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                        </div>
+
+                        <div class="step" id="step3">
+                            <div class="step-icon">
+                                <i class="fas fa-image"></i>
+                            </div>
+                            <div class="step-content">
+                                <h3>Image Generation</h3>
+                                <p>Generating transformed images...</p>
+                                <div class="progress-bar">
+                                    <div class="progress" id="progress3"></div>
+                                </div>
+                            </div>
+                            <div class="step-status" id="status3">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                        </div>
+
+                        <div class="step" id="step4">
+                            <div class="step-icon">
+                                <i class="fas fa-analytics"></i>
+                            </div>
+                            <div class="step-content">
+                                <h3>Video Analysis</h3>
+                                <p>Analyzing video content and movements...</p>
+                                <div class="progress-bar">
+                                    <div class="progress" id="progress4"></div>
+                                </div>
+                            </div>
+                            <div class="step-status" id="status4">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                        </div>
+
+                        <div class="step" id="step5">
+                            <div class="step-icon">
+                                <i class="fas fa-video"></i>
+                            </div>
+                            <div class="step-content">
+                                <h3>Video Generation</h3>
+                                <p>Creating your final transformed video...</p>
+                                <div class="progress-bar">
+                                    <div class="progress" id="progress5"></div>
+                                </div>
+                            </div>
+                            <div class="step-status" id="status5">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section" id="resultsSection" style="display: none;">
+                <div class="results-card">
+                    <h2><i class="fas fa-check-circle"></i> Transformation Complete!</h2>
+
+                    <div class="results-comparison">
+                        <div class="result-item">
+                            <h3>Original Video</h3>
+                            <video id="originalVideo" controls></video>
+                        </div>
+                        <div class="result-item">
+                            <h3>Transformed Video</h3>
+                            <video id="transformedVideo" controls></video>
+                        </div>
+                    </div>
+
+                    <div class="results-details">
+                        <div class="detail-tabs">
+                            <button class="tab-btn active" onclick="showTab('frames')">Extracted Frames</button>
+                            <button class="tab-btn" onclick="showTab('prompt')">Enhanced Prompt</button>
+                            <button class="tab-btn" onclick="showTab('analysis')">Video Analysis</button>
+                        </div>
+
+                        <div class="tab-content" id="framesTab">
+                            <div class="frames-grid" id="framesGrid"></div>
+                        </div>
+
+                        <div class="tab-content" id="promptTab" style="display: none;">
+                            <div class="prompt-details">
+                                <h4>Original Request:</h4>
+                                <p id="originalPrompt"></p>
+                                <h4>Enhanced Prompt:</h4>
+                                <p id="enhancedPrompt"></p>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="analysisTab" style="display: none;">
+                            <div class="analysis-details">
+                                <pre id="analysisText"></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="download-section">
+                        <button class="btn btn-success btn-lg" id="downloadBtn">
+                            <i class="fas fa-download"></i> Download Transformed Video
+                        </button>
+                        <button class="btn btn-secondary btn-lg" onclick="resetApp()">
+                            <i class="fas fa-redo"></i> Process Another Video
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Error Section -->
+            <div class="error-modal" id="errorModal" style="display: none;">
+                <div class="error-content">
+                    <i class="fas fa-exclamation-triangle fa-3x"></i>
+                    <h3>Oops! Something went wrong</h3>
+                    <p id="errorMessage"></p>
+                    <button class="btn btn-primary" onclick="hideError()">OK</button>
+                </div>
+            </div>
+
+            <!-- Loading Overlay -->
+            <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+                <div class="spinner"></div>
+                <p id="loadingMessage">Processing...</p>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Powered by Gemini AI & EachLabs | Built with ❤️</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
