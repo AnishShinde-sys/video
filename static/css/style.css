@@ -343,6 +343,20 @@ footer {
     opacity: 0.9;
 }
 
+/* Audio Notice Styling */
+.audio-notice {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
 @media (max-width: 768px) {
     body {
         padding: 1rem;

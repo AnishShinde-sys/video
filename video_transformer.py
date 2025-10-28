@@ -31,6 +31,7 @@ import numpy as np
 # Video processing
 import imageio_ffmpeg
 import imageio.v3 as iio
+import subprocess
 
 # Add path for google-genai if needed
 sys.path.append('/Users/anishshinde/Library/Python/3.9/lib/python/site-packages')
@@ -1390,6 +1391,143 @@ Animate this image with natural, lifelike motion. THE PERSON MUST SAY THE EXACT 
         return "Indoor scene with natural lighting"
 
     # ================================================================================
+    # AUDIO PROCESSING METHODS
+    # ================================================================================
+
+    def extract_audio_from_video(self, video_path: str) -> str:
+        """
+        Extract audio from the original video using FFmpeg
+        Returns path to the extracted audio file
+        """
+        print_step("Extracting audio from original video...")
+        
+        video_path = Path(video_path)
+        if not video_path.exists():
+            raise FileNotFoundError(f"Video not found: {video_path}")
+        
+        # Create audio output directory
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        audio_dir = self.output_dir / "audio" / timestamp
+        audio_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Output audio file path
+        audio_output = audio_dir / "extracted_audio.wav"
+        
+        try:
+            # Get FFmpeg executable path
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            
+            # FFmpeg command to extract audio
+            cmd = [
+                ffmpeg_exe,
+                '-i', str(video_path),
+                '-vn',  # No video
+                '-acodec', 'pcm_s16le',  # PCM 16-bit little-endian
+                '-ar', '44100',  # Sample rate 44.1kHz
+                '-ac', '2',  # Stereo
+                '-y',  # Overwrite output file
+                str(audio_output)
+            ]
+            
+            print_detail(f"Running FFmpeg command: {' '.join(cmd)}")
+            
+            # Run FFmpeg command
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60  # 60 second timeout
+            )
+            
+            if result.returncode != 0:
+                print_error(f"FFmpeg audio extraction failed: {result.stderr}")
+                raise Exception(f"Audio extraction failed: {result.stderr}")
+            
+            if not audio_output.exists():
+                raise Exception("Audio file was not created")
+            
+            audio_size_mb = audio_output.stat().st_size / (1024 * 1024)
+            print_success(f"Audio extracted successfully: {audio_output.name}")
+            print_info(f"Audio size: {audio_size_mb:.2f} MB")
+            
+            return str(audio_output)
+            
+        except subprocess.TimeoutExpired:
+            raise Exception("Audio extraction timed out after 60 seconds")
+        except Exception as e:
+            print_error(f"Audio extraction error: {str(e)}")
+            raise
+
+    def merge_audio_with_video(self, video_path: str, audio_path: str) -> str:
+        """
+        Merge extracted audio with generated video using FFmpeg
+        Returns path to the final video with audio
+        """
+        print_step("Merging audio with generated video...")
+        
+        video_path = Path(video_path)
+        audio_path = Path(audio_path)
+        
+        if not video_path.exists():
+            raise FileNotFoundError(f"Video not found: {video_path}")
+        if not audio_path.exists():
+            raise FileNotFoundError(f"Audio not found: {audio_path}")
+        
+        # Create final output directory
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        final_dir = self.output_dir / "final" / timestamp
+        final_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Output final video file path
+        final_video = final_dir / f"final_video_with_audio_{timestamp}.mp4"
+        
+        try:
+            # Get FFmpeg executable path
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            
+            # FFmpeg command to merge video and audio
+            cmd = [
+                ffmpeg_exe,
+                '-i', str(video_path),  # Input video
+                '-i', str(audio_path),  # Input audio
+                '-c:v', 'copy',  # Copy video codec (no re-encoding)
+                '-c:a', 'aac',  # Encode audio to AAC
+                '-b:a', '128k',  # Audio bitrate
+                '-shortest',  # Finish when shortest input ends
+                '-y',  # Overwrite output file
+                str(final_video)
+            ]
+            
+            print_detail(f"Running FFmpeg merge command: {' '.join(cmd)}")
+            
+            # Run FFmpeg command
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=120  # 2 minute timeout
+            )
+            
+            if result.returncode != 0:
+                print_error(f"FFmpeg video/audio merge failed: {result.stderr}")
+                raise Exception(f"Video/audio merge failed: {result.stderr}")
+            
+            if not final_video.exists():
+                raise Exception("Final video file was not created")
+            
+            final_size_mb = final_video.stat().st_size / (1024 * 1024)
+            print_success(f"Audio merged successfully: {final_video.name}")
+            print_info(f"Final video size: {final_size_mb:.2f} MB")
+            
+            return str(final_video)
+            
+        except subprocess.TimeoutExpired:
+            raise Exception("Video/audio merge timed out after 2 minutes")
+        except Exception as e:
+            print_error(f"Video/audio merge error: {str(e)}")
+            raise
+
+    # ================================================================================
     # MAIN PIPELINE
     # ================================================================================
 
@@ -1423,20 +1561,33 @@ Animate this image with natural, lifelike motion. THE PERSON MUST SAY THE EXACT 
             )
             results['step3'] = step3_result
 
-            # Step 4: Video analysis
-            if not skip_analysis:
-                step4_result = self.analyze_video(video_path)
-                results['step4'] = step4_result
+            # Step 4: Extract audio from original video
+            print_header("STEP 4: AUDIO EXTRACTION")
+            step4_result = self.extract_audio_from_video(video_path)
+            results['step4'] = {'audio_path': step4_result}
 
-                # Step 5: Generate video (using analysis)
+            # Step 5: Video analysis
+            if not skip_analysis:
+                step5_result = self.analyze_video(video_path)
+                results['step5'] = step5_result
+
+                # Step 6: Generate video (using analysis)
                 if not skip_video_gen:
-                    step5_result = self.generate_video(
+                    step6_result = self.generate_video(
                         video_path,
                         step3_result['generated_image'],
-                        step4_result['analysis'],
+                        step5_result['analysis'],
                         step2_result['action_prompt']
                     )
-                    results['step5'] = step5_result
+                    results['step6'] = step6_result
+
+                    # Step 7: Merge audio with generated video
+                    print_header("STEP 7: AUDIO MERGE")
+                    step7_result = self.merge_audio_with_video(
+                        step6_result['video_path'],
+                        step4_result
+                    )
+                    results['step7'] = {'final_video_path': step7_result}
 
             # Save final results
             final_results = {
@@ -1446,13 +1597,16 @@ Animate this image with natural, lifelike motion. THE PERSON MUST SAY THE EXACT 
                 "generated_image": step3_result['generated_image'],
                 "frames_dir": step1_result['frames_dir'],
                 "image_dir": step3_result['image_dir'],
+                "extracted_audio": step4_result,
                 "timestamp": datetime.now().isoformat()
             }
 
             if not skip_analysis:
-                final_results['analysis_file'] = results['step4']['analysis_file']
-                if not skip_video_gen and 'step5' in results:
-                    final_results['video_generation'] = results['step5']
+                final_results['analysis_file'] = results['step5']['analysis_file']
+                if not skip_video_gen and 'step6' in results:
+                    final_results['video_generation'] = results['step6']
+                    if 'step7' in results:
+                        final_results['final_video_with_audio'] = results['step7']['final_video_path']
 
             results_file = self.output_dir / "results.json"
             with open(results_file, 'w') as f:
@@ -1460,8 +1614,11 @@ Animate this image with natural, lifelike motion. THE PERSON MUST SAY THE EXACT 
 
             print_header("🎉 PIPELINE COMPLETE!")
             print_success(f"Generated image: {step3_result['generated_image']}")
+            print_success(f"Extracted audio: {step4_result}")
             if not skip_analysis:
-                print_success(f"Video analysis: {results['step4']['analysis_file']}")
+                print_success(f"Video analysis: {results['step5']['analysis_file']}")
+                if not skip_video_gen and 'step7' in results:
+                    print_success(f"Final video with audio: {results['step7']['final_video_path']}")
             print_success(f"Results saved: {results_file}")
 
             return {

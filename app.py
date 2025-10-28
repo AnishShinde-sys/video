@@ -43,12 +43,12 @@ def process_video_async(job_id, video_path, prompt, output_dir):
             with VideoTransformer(api_key=api_key, output_dir=output_dir) as transformer:
                 # Step 1: Extract frames
                 jobs[job_id]['step'] = 'Extracting frames from video...'
-                jobs[job_id]['progress'] = 20
+                jobs[job_id]['progress'] = 15
                 step1_result = transformer.extract_frames(video_path)
 
                 # Step 2: Enhance prompt
                 jobs[job_id]['step'] = 'Enhancing prompt with AI...'
-                jobs[job_id]['progress'] = 35
+                jobs[job_id]['progress'] = 25
                 step2_result = transformer.enhance_prompt(
                     step1_result['frames_dir'],
                     prompt
@@ -56,50 +56,72 @@ def process_video_async(job_id, video_path, prompt, output_dir):
 
                 # Step 3: Generate image
                 jobs[job_id]['step'] = 'Generating transformed image...'
-                jobs[job_id]['progress'] = 50
+                jobs[job_id]['progress'] = 40
                 step3_result = transformer.generate_image(
                     step1_result['frames_dir'],
                     step2_result['action_prompt']
                 )
 
-                # Step 4: Analyze video
-                jobs[job_id]['step'] = 'Analyzing original video for speech and movements...'
-                jobs[job_id]['progress'] = 65
-                step4_result = transformer.analyze_video(video_path)
+                # Step 4: Extract audio from original video
+                jobs[job_id]['step'] = 'Extracting audio from original video...'
+                jobs[job_id]['progress'] = 50
+                step4_result = transformer.extract_audio_from_video(video_path)
 
-                # Step 5: Generate final video
-                jobs[job_id]['step'] = 'Generating final video (this may take 2-3 minutes)...'
-                jobs[job_id]['progress'] = 80
-                step5_result = transformer.generate_video(
+                # Step 5: Analyze video
+                jobs[job_id]['step'] = 'Analyzing original video for speech and movements...'
+                jobs[job_id]['progress'] = 60
+                step5_result = transformer.analyze_video(video_path)
+
+                # Step 6: Generate video
+                jobs[job_id]['step'] = 'Generating video (this may take 2-3 minutes)...'
+                jobs[job_id]['progress'] = 75
+                step6_result = transformer.generate_video(
                     video_path,
                     step3_result['generated_image'],
-                    step4_result['analysis'],
+                    step5_result['analysis'],
                     step2_result['action_prompt']
                 )
 
-            if step5_result['success']:
+                # Step 7: Merge audio with generated video
+                jobs[job_id]['step'] = 'Merging audio with generated video...'
+                jobs[job_id]['progress'] = 90
+                step7_result = transformer.merge_audio_with_video(
+                    step6_result['video_path'],
+                    step4_result
+                )
+
+            if step6_result['success']:
                 jobs[job_id]['status'] = 'completed'
                 jobs[job_id]['progress'] = 100
-                jobs[job_id]['step'] = 'Video generation complete!'
+                jobs[job_id]['step'] = 'Video with audio complete!'
                 
                 # Get filenames for URLs (construct manually to avoid url_for issues in background thread)
-                video_filename = Path(step5_result['video_path']).name
+                # Use the final video with audio as the main result
+                final_video_filename = Path(step7_result).name
                 image_filename = Path(step3_result['generated_image']).name
                 
+                # Log the final video creation
+                print(f"✅ FINAL VIDEO CREATED: {final_video_filename}")
+                print(f"   📁 Path: {step7_result}")
+                print(f"   🔊 Audio: Included from original video")
+                print(f"   📏 Size: {Path(step7_result).stat().st_size / (1024 * 1024):.2f} MB")
+                print(f"   🌐 Will be served at: /view/{final_video_filename}")
+                
                 jobs[job_id]['result'] = {
-                    'video_path': step5_result['video_path'],
-                    'video_filename': video_filename,
-                    'video_url': f'/download/{video_filename}',
-                    'video_view_url': f'/view/{video_filename}',
+                    'video_path': step7_result,  # Final video with audio
+                    'video_filename': final_video_filename,
+                    'video_url': f'/download/{final_video_filename}',
+                    'video_view_url': f'/view/{final_video_filename}',
                     'generated_image': step3_result['generated_image'],
                     'image_filename': image_filename,
                     'image_url': f'/download/{image_filename}',
                     'image_view_url': f'/view/{image_filename}',
-                    'duration': step5_result.get('generation_time', 0),
-                    'size_mb': step5_result.get('size_mb', 0)
+                    'duration': step6_result.get('generation_time', 0),
+                    'size_mb': Path(step7_result).stat().st_size / (1024 * 1024) if Path(step7_result).exists() else 0,
+                    'has_audio': True  # Flag to indicate this video has audio
                 }
             else:
-                raise Exception(step5_result.get('error', 'Video generation failed'))
+                raise Exception(step6_result.get('error', 'Video generation failed'))
 
     except Exception as e:
         jobs[job_id]['status'] = 'failed'
@@ -180,12 +202,19 @@ def view_file(filename):
     for job_id in jobs:
         output_dir = os.path.join(app.config['OUTPUT_FOLDER'], job_id)
 
-        # Check in videos folder
+        # Check in final folder (videos with audio)
+        final_path = os.path.join(output_dir, 'final')
+        for subdir in Path(final_path).glob('*'):
+            file_path = subdir / filename
+            if file_path.exists():
+                return send_file(str(file_path), mimetype='video/mp4')
+
+        # Check in videos folder (original generated videos)
         video_path = os.path.join(output_dir, 'videos', filename)
         if os.path.exists(video_path):
             return send_file(video_path, mimetype='video/mp4')
 
-        # Check in generated folder
+        # Check in generated folder (images)
         image_path = os.path.join(output_dir, 'generated')
         for subdir in Path(image_path).glob('*'):
             file_path = subdir / filename
@@ -204,12 +233,19 @@ def download_file(filename):
     for job_id in jobs:
         output_dir = os.path.join(app.config['OUTPUT_FOLDER'], job_id)
 
-        # Check in videos folder
+        # Check in final folder (videos with audio) - priority
+        final_path = os.path.join(output_dir, 'final')
+        for subdir in Path(final_path).glob('*'):
+            file_path = subdir / filename
+            if file_path.exists():
+                return send_file(str(file_path), as_attachment=True)
+
+        # Check in videos folder (original generated videos)
         video_path = os.path.join(output_dir, 'videos', filename)
         if os.path.exists(video_path):
             return send_file(video_path, as_attachment=True)
 
-        # Check in generated folder
+        # Check in generated folder (images)
         image_path = os.path.join(output_dir, 'generated')
         for subdir in Path(image_path).glob('*'):
             file_path = subdir / filename
@@ -241,6 +277,7 @@ if __name__ == '__main__':
         print("WARNING: EACHLABS_API_KEY not set in environment")
 
     print("Starting AI Video Transformer Web Application...")
-    print("Open http://localhost:5001 in your browser")
+    print("Open http://localhost:5002 in your browser")
+    print("Features: Audio extraction + Video generation + Audio merging")
     # Disable reloader to prevent file descriptor leaks from multiple processes
-    app.run(debug=True, host='0.0.0.0', port=5001, threaded=True, use_reloader=False)
+    app.run(debug=True, host='0.0.0.0', port=5002, threaded=True, use_reloader=False)
