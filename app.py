@@ -82,19 +82,19 @@ def process_video_async(job_id, video_path, prompt, output_dir):
                 jobs[job_id]['progress'] = 100
                 jobs[job_id]['step'] = 'Video generation complete!'
                 
-                # Get filenames for URLs
+                # Get filenames for URLs (construct manually to avoid url_for issues in background thread)
                 video_filename = Path(step5_result['video_path']).name
                 image_filename = Path(step3_result['generated_image']).name
                 
                 jobs[job_id]['result'] = {
                     'video_path': step5_result['video_path'],
                     'video_filename': video_filename,
-                    'video_url': url_for('download_file', filename=video_filename),
-                    'video_view_url': url_for('view_file', filename=video_filename),
+                    'video_url': f'/download/{video_filename}',
+                    'video_view_url': f'/view/{video_filename}',
                     'generated_image': step3_result['generated_image'],
                     'image_filename': image_filename,
-                    'image_url': url_for('download_file', filename=image_filename),
-                    'image_view_url': url_for('view_file', filename=image_filename),
+                    'image_url': f'/download/{image_filename}',
+                    'image_view_url': f'/view/{image_filename}',
                     'duration': step5_result.get('generation_time', 0),
                     'size_mb': step5_result.get('size_mb', 0)
                 }
