@@ -5,12 +5,13 @@ Flask Web Application for AI Video Transformer
 
 import os
 import json
+import logging
 from flask import Flask, render_template, request, jsonify, send_file, url_for
 from werkzeug.utils import secure_filename
 from pathlib import Path
 import threading
 from datetime import datetime
-from video_transformer import VideoTransformer
+from video_transformer import VideoTransformer, setup_logging
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
@@ -38,9 +39,16 @@ def process_video_async(job_id, video_path, prompt, output_dir):
             jobs[job_id]['status'] = 'processing'
             jobs[job_id]['step'] = 'Initializing transformer...'
 
+            # Check if logging is enabled via environment variable
+            enable_logging = os.getenv('ENABLE_LOGGING', 'false').lower() == 'true'
+            log_level = getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO)
+            log_file = os.getenv('LOG_FILE', f'logs/job_{job_id}.log') if enable_logging else None
+
             # Initialize transformer with context manager for proper cleanup
             api_key = os.getenv("GEMINI_API_KEY")
-            with VideoTransformer(api_key=api_key, output_dir=output_dir) as transformer:
+            with VideoTransformer(api_key=api_key, output_dir=output_dir, 
+                                enable_logging=enable_logging, log_level=log_level, 
+                                log_file=log_file) as transformer:
                 # Step 1: Extract frames
                 jobs[job_id]['step'] = 'Extracting frames from video...'
                 jobs[job_id]['progress'] = 15
@@ -270,14 +278,36 @@ def list_jobs():
     })
 
 if __name__ == '__main__':
+    # Setup logging for the Flask app if enabled
+    enable_app_logging = os.getenv('ENABLE_LOGGING', 'false').lower() == 'true'
+    if enable_app_logging:
+        log_level = getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO)
+        log_file = os.getenv('LOG_FILE', 'logs/app.log')
+        setup_logging(enable_app_logging, log_level, log_file)
+        logging.info("Flask application logging enabled")
+    
     # Check for API keys
     if not os.getenv("GEMINI_API_KEY"):
         print("WARNING: GEMINI_API_KEY not set in environment")
+        if enable_app_logging:
+            logging.warning("GEMINI_API_KEY not set in environment")
     if not os.getenv("EACHLABS_API_KEY"):
         print("WARNING: EACHLABS_API_KEY not set in environment")
+        if enable_app_logging:
+            logging.warning("EACHLABS_API_KEY not set in environment")
 
     print("Starting AI Video Transformer Web Application...")
     print("Open http://localhost:5002 in your browser")
     print("Features: Audio extraction + Video generation + Audio merging")
+    
+    # Log configuration info
+    if enable_app_logging:
+        logging.info("Starting AI Video Transformer Web Application")
+        logging.info("Features: Audio extraction + Video generation + Audio merging")
+        logging.info(f"Logging enabled - Level: {os.getenv('LOG_LEVEL', 'INFO')}")
+        logging.info(f"Log file: {os.getenv('LOG_FILE', 'logs/app.log')}")
+    else:
+        print("Logging disabled. Set ENABLE_LOGGING=true to enable.")
+    
     # Disable reloader to prevent file descriptor leaks from multiple processes
     app.run(debug=True, host='0.0.0.0', port=5002, threaded=True, use_reloader=False)

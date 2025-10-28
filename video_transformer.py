@@ -15,6 +15,7 @@ import os
 import sys
 import json
 import argparse
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -48,6 +49,77 @@ CYAN = '\033[96m'
 MAGENTA = '\033[95m'
 RESET = '\033[0m'
 BOLD = '\033[1m'
+
+def setup_logging(enable_logging=False, log_level=logging.INFO, log_file=None):
+    """
+    Setup logging configuration
+    
+    Args:
+        enable_logging (bool): Enable/disable logging
+        log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
+        log_file (str): Optional log file path
+    """
+    if not enable_logging:
+        logging.disable(logging.CRITICAL)
+        return
+    
+    # Enable logging
+    logging.disable(logging.NOTSET)
+    
+    # Create logs directory if it doesn't exist
+    if log_file:
+        log_path = Path(log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Configure logging format
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Setup root logger
+    logger = logging.getLogger()
+    logger.setLevel(log_level)
+    
+    # Clear existing handlers
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    
+    # File handler (if specified)
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(log_level)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    
+    logging.info("Logging configured successfully")
+    return logger
+
+def log_step(message, level=logging.INFO):
+    """Log a step with consistent formatting"""
+    if logging.getLogger().isEnabledFor(level):
+        logging.log(level, f"STEP: {message}")
+
+def log_detail(message, level=logging.DEBUG):
+    """Log detailed information"""
+    if logging.getLogger().isEnabledFor(level):
+        logging.log(level, f"DETAIL: {message}")
+
+def log_error(message, level=logging.ERROR):
+    """Log error information"""
+    if logging.getLogger().isEnabledFor(level):
+        logging.log(level, f"ERROR: {message}")
+
+def log_success(message, level=logging.INFO):
+    """Log success information"""
+    if logging.getLogger().isEnabledFor(level):
+        logging.log(level, f"SUCCESS: {message}")
 
 def print_header(text):
     print(f"\n{CYAN}{'='*80}{RESET}")
@@ -164,7 +236,9 @@ def force_cleanup_connections():
 class VideoTransformer:
     """All-in-one AI video transformation pipeline"""
 
-    def __init__(self, api_key: str = None, output_dir: str = "output"):
+    def __init__(self, api_key: str = None, output_dir: str = "output", 
+                 enable_logging: bool = False, log_level: int = logging.INFO, 
+                 log_file: str = None):
         """Initialize the video transformer"""
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
@@ -172,6 +246,12 @@ class VideoTransformer:
 
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Setup logging
+        self.enable_logging = enable_logging
+        if enable_logging:
+            setup_logging(enable_logging, log_level, log_file)
+            log_success("Video Transformer initializing with logging enabled")
 
         # Initialize Gemini APIs
         genai.configure(api_key=self.api_key)
@@ -179,6 +259,8 @@ class VideoTransformer:
         self.image_client = None  # Lazy init for image generation
 
         print_success("Video Transformer initialized")
+        if self.enable_logging:
+            log_success("Video Transformer initialized")
         print_resource_info("INIT")
         
         # Force cleanup of any lingering connections from previous runs
@@ -236,6 +318,8 @@ class VideoTransformer:
     def extract_frames(self, video_path: str, num_frames: int = 7) -> Dict:
         """Extract key frames from video"""
         print_header("STEP 1: FRAME EXTRACTION")
+        if self.enable_logging:
+            log_step(f"Starting frame extraction for: {video_path}")
         print_resource_info("EXTRACT_FRAMES_START")
         print_detail(f"[DEBUG] Starting frame extraction for: {video_path}")
 
@@ -1650,6 +1734,10 @@ def main():
     parser.add_argument("--generate-video", action="store_true", help="Attempt video generation (requires Veo)")
     parser.add_argument("--api-key", help="Gemini API key (or set GEMINI_API_KEY env var)")
     parser.add_argument("--frames", type=int, default=7, help="Number of frames to extract (default: 7)")
+    parser.add_argument("--enable-logging", action="store_true", help="Enable detailed logging")
+    parser.add_argument("--log-level", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], 
+                       default='INFO', help="Logging level (default: INFO)")
+    parser.add_argument("--log-file", help="Log file path (default: logs/video_transformer.log)")
 
     args = parser.parse_args()
 
@@ -1661,8 +1749,14 @@ def main():
         print_info("Or use: --api-key YOUR_API_KEY")
         sys.exit(1)
 
+    # Setup logging configuration
+    log_level = getattr(logging, args.log_level.upper())
+    log_file = args.log_file or "logs/video_transformer.log" if args.enable_logging else None
+
     # Use context manager for proper resource cleanup
-    with VideoTransformer(api_key=api_key, output_dir=args.output) as transformer:
+    with VideoTransformer(api_key=api_key, output_dir=args.output,
+                         enable_logging=args.enable_logging, log_level=log_level, 
+                         log_file=log_file) as transformer:
         # Run pipeline
         result = transformer.transform_video(
             args.video,
