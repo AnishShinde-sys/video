@@ -33,62 +33,73 @@ def allowed_file(filename):
 def process_video_async(job_id, video_path, prompt, output_dir):
     """Process video in background thread"""
     try:
-        jobs[job_id]['status'] = 'processing'
-        jobs[job_id]['step'] = 'Initializing transformer...'
+        # Use Flask application context for url_for
+        with app.app_context():
+            jobs[job_id]['status'] = 'processing'
+            jobs[job_id]['step'] = 'Initializing transformer...'
 
-        # Initialize transformer with context manager for proper cleanup
-        api_key = os.getenv("GEMINI_API_KEY")
-        with VideoTransformer(api_key=api_key, output_dir=output_dir) as transformer:
-            # Step 1: Extract frames
-            jobs[job_id]['step'] = 'Extracting frames from video...'
-            jobs[job_id]['progress'] = 20
-            step1_result = transformer.extract_frames(video_path)
+            # Initialize transformer with context manager for proper cleanup
+            api_key = os.getenv("GEMINI_API_KEY")
+            with VideoTransformer(api_key=api_key, output_dir=output_dir) as transformer:
+                # Step 1: Extract frames
+                jobs[job_id]['step'] = 'Extracting frames from video...'
+                jobs[job_id]['progress'] = 20
+                step1_result = transformer.extract_frames(video_path)
 
-            # Step 2: Enhance prompt
-            jobs[job_id]['step'] = 'Enhancing prompt with AI...'
-            jobs[job_id]['progress'] = 35
-            step2_result = transformer.enhance_prompt(
-                step1_result['frames_dir'],
-                prompt
-            )
+                # Step 2: Enhance prompt
+                jobs[job_id]['step'] = 'Enhancing prompt with AI...'
+                jobs[job_id]['progress'] = 35
+                step2_result = transformer.enhance_prompt(
+                    step1_result['frames_dir'],
+                    prompt
+                )
 
-            # Step 3: Generate image
-            jobs[job_id]['step'] = 'Generating transformed image...'
-            jobs[job_id]['progress'] = 50
-            step3_result = transformer.generate_image(
-                step1_result['frames_dir'],
-                step2_result['action_prompt']
-            )
+                # Step 3: Generate image
+                jobs[job_id]['step'] = 'Generating transformed image...'
+                jobs[job_id]['progress'] = 50
+                step3_result = transformer.generate_image(
+                    step1_result['frames_dir'],
+                    step2_result['action_prompt']
+                )
 
-            # Step 4: Analyze video
-            jobs[job_id]['step'] = 'Analyzing original video for speech and movements...'
-            jobs[job_id]['progress'] = 65
-            step4_result = transformer.analyze_video(video_path)
+                # Step 4: Analyze video
+                jobs[job_id]['step'] = 'Analyzing original video for speech and movements...'
+                jobs[job_id]['progress'] = 65
+                step4_result = transformer.analyze_video(video_path)
 
-            # Step 5: Generate final video
-            jobs[job_id]['step'] = 'Generating final video (this may take 2-3 minutes)...'
-            jobs[job_id]['progress'] = 80
-            step5_result = transformer.generate_video(
-                video_path,
-                step3_result['generated_image'],
-                step4_result['analysis'],
-                step2_result['action_prompt']
-            )
+                # Step 5: Generate final video
+                jobs[job_id]['step'] = 'Generating final video (this may take 2-3 minutes)...'
+                jobs[job_id]['progress'] = 80
+                step5_result = transformer.generate_video(
+                    video_path,
+                    step3_result['generated_image'],
+                    step4_result['analysis'],
+                    step2_result['action_prompt']
+                )
 
-        if step5_result['success']:
-            jobs[job_id]['status'] = 'completed'
-            jobs[job_id]['progress'] = 100
-            jobs[job_id]['step'] = 'Video generation complete!'
-            jobs[job_id]['result'] = {
-                'video_path': step5_result['video_path'],
-                'video_url': url_for('download_file', filename=Path(step5_result['video_path']).name),
-                'generated_image': step3_result['generated_image'],
-                'image_url': url_for('download_file', filename=Path(step3_result['generated_image']).name),
-                'duration': step5_result.get('generation_time', 0),
-                'size_mb': step5_result.get('size_mb', 0)
-            }
-        else:
-            raise Exception(step5_result.get('error', 'Video generation failed'))
+            if step5_result['success']:
+                jobs[job_id]['status'] = 'completed'
+                jobs[job_id]['progress'] = 100
+                jobs[job_id]['step'] = 'Video generation complete!'
+                
+                # Get filenames for URLs
+                video_filename = Path(step5_result['video_path']).name
+                image_filename = Path(step3_result['generated_image']).name
+                
+                jobs[job_id]['result'] = {
+                    'video_path': step5_result['video_path'],
+                    'video_filename': video_filename,
+                    'video_url': url_for('download_file', filename=video_filename),
+                    'video_view_url': url_for('view_file', filename=video_filename),
+                    'generated_image': step3_result['generated_image'],
+                    'image_filename': image_filename,
+                    'image_url': url_for('download_file', filename=image_filename),
+                    'image_view_url': url_for('view_file', filename=image_filename),
+                    'duration': step5_result.get('generation_time', 0),
+                    'size_mb': step5_result.get('size_mb', 0)
+                }
+            else:
+                raise Exception(step5_result.get('error', 'Video generation failed'))
 
     except Exception as e:
         jobs[job_id]['status'] = 'failed'
@@ -161,6 +172,30 @@ def get_status(job_id):
         return jsonify({'error': 'Job not found'}), 404
 
     return jsonify(jobs[job_id])
+
+@app.route('/view/<filename>')
+def view_file(filename):
+    """View/stream generated file (for video player)"""
+    # Search in output directories
+    for job_id in jobs:
+        output_dir = os.path.join(app.config['OUTPUT_FOLDER'], job_id)
+
+        # Check in videos folder
+        video_path = os.path.join(output_dir, 'videos', filename)
+        if os.path.exists(video_path):
+            return send_file(video_path, mimetype='video/mp4')
+
+        # Check in generated folder
+        image_path = os.path.join(output_dir, 'generated')
+        for subdir in Path(image_path).glob('*'):
+            file_path = subdir / filename
+            if file_path.exists():
+                # Determine mimetype based on extension
+                ext = file_path.suffix.lower()
+                mimetype = 'image/jpeg' if ext in ['.jpg', '.jpeg'] else 'image/png'
+                return send_file(str(file_path), mimetype=mimetype)
+
+    return jsonify({'error': 'File not found'}), 404
 
 @app.route('/download/<filename>')
 def download_file(filename):

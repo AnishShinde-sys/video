@@ -109,15 +109,16 @@ function showResults(result) {
     resultsSection.style.display = 'block';
     errorSection.style.display = 'none';
 
-    // Set video
+    // Set video (use view URL for streaming)
     const resultVideo = document.getElementById('result-video');
-    resultVideo.src = result.video_url;
+    resultVideo.src = result.video_view_url || result.video_url;
+    resultVideo.load(); // Force reload
 
-    // Set image
+    // Set image (use view URL for display)
     const resultImage = document.getElementById('result-image');
-    resultImage.src = result.image_url;
+    resultImage.src = result.image_view_url || result.image_url;
 
-    // Set download links
+    // Set download links (use download URLs)
     document.getElementById('download-video-btn').href = result.video_url;
     document.getElementById('download-image-btn').href = result.image_url;
 
