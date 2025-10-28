@@ -1,0 +1,11 @@
+{
+  "timestamp": "20251027_182335",
+  "action_prompt": "A young man with curly dark hair looks at the camera, wearing a blue jacket. A bright red hat sits on his head. The hat is a traditional-style flat cap. Behind him, a paneled wooden wall is partially visible, decorated with light green vines. The lighting is soft and diffused.",
+  "frames_dir": "output/job_20251027_182323/frames/20251027_182323",
+  "reference_frames": [
+    "output/job_20251027_182323/frames/20251027_182323/frame_01_start_0000.jpg"
+  ],
+  "generated_image": "output/job_20251027_182323/generated/20251027_182335/generated_output.jpg",
+  "model": "gemini-2.5-flash-image",
+  "num_reference_images": 1
+}

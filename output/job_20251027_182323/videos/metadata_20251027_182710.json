@@ -1,0 +1,13 @@
+{
+  "prediction_id": "c021d927-eb04-4bd6-8652-427b47cec286",
+  "timestamp": "20251027_182710",
+  "video_path": "output/job_20251027_182323/videos/generated_video_20251027_182710.mp4",
+  "video_url": "https://storage.googleapis.com/1019uploads/0d8e5b9b-513b-4f6b-b67a-4ca3b36b2c55.mp4",
+  "duration": 12,
+  "resolution": "1080p",
+  "aspect_ratio": "16:9",
+  "prompt": "A young man with curly dark hair looks at the camera, wearing a blue jacket. A bright red hat sits on his head. The hat is a traditional-style flat cap. Behind him, a paneled wooden wall is partially visible, decorated with light green vines. The lighting is soft and diffused.\n\nSPEECH TRANSCRIPT (THE PERSON MUST SAY THESE EXACT WORDS):\n(for video generation)\nMy long-term plan is useless because times and settings and uh predictions are very inaccurate in the long run because new elements and variables can be changed.\n\nMOTION & TIMING (from original video):\n[00:01] Eyes: Looking at camera, steady.\n[00:02] Eyes: Rapidly moving upwards.\n[00:03] Eyes: Still looking upwards, slight darting.\n[00:04] Eyes: Moving slightly to the left and up.\n[00:05] Eyes: Moving to the right and up.\n[00:06] Eyes: Moving down, but still slightly upwards.\n[00:07] Eyes: Looking up and slightly to the left.\n[00:08] Eyes: Slowly moving down to look more directly at the camera.\n[00:09] Eyes: Looking at camera, more steady.\n[00:10] Eyes: Looking at camera, more steady.\n\nVIDEO REQUIREMENTS:\n- Duration: 12 seconds\n- Style: Cinematic, photorealistic, high-fidelity\n- Motion: Smooth, natural movements matching original timing\n- Camera: Straight on. - Static camera\n- Lighting: Realistic lighting matching the reference image\n- Audio: The person must speak the transcript above with natural lip sync and voice\n\nAnimate this image with natural, lifelike motion. THE PERSON MUST SAY THE EXACT WORDS FROM THE TRANSCRIPT. Maintain the exact appearance from the image while adding subtle movements, facial expressions, natural lip movements that match the speech, and the actions described above. Ensure photorealistic quality with smooth, natural motion and accurate lip synchronization.",
+  "generated_image": "output/job_20251027_182323/generated/20251027_182335/generated_output.jpg",
+  "original_video": "uploads/20251027_182323_e10ca805-88e2-474d-85cb-aaf8837357d4_2.MP4",
+  "generation_time_seconds": 81
+}

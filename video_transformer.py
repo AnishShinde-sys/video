@@ -1022,114 +1022,175 @@ Animate this image with natural, lifelike motion. THE PERSON MUST SAY THE EXACT 
         # Upload image to Backblaze B2 (S3-compatible storage)
         print_step("Uploading generated image to Backblaze B2...")
 
-        # Use session for B2 API calls
-        with requests.Session() as b2_session:
+        # Use urllib3 for B2 API calls to avoid connection leaks
+        import urllib3
+        import base64 as b64
+        
+        # Create pool manager with longer timeout for file uploads
+        b2_http = urllib3.PoolManager(
+            num_pools=1,
+            maxsize=1,
+            timeout=urllib3.Timeout(connect=30.0, read=120.0),  # Longer read timeout for uploads
+            retries=urllib3.Retry(total=2, connect=2, read=2, backoff_factor=1)
+        )
+        
+        try:
+            # Get B2 credentials from environment
+            b2_key_id = os.getenv("keyID")
+            b2_key_name = os.getenv("keyName")
+            b2_app_key = os.getenv("applicationKey")
+
+            if not all([b2_key_id, b2_key_name, b2_app_key]):
+                raise ValueError("B2 credentials not found in .env file")
+
+            # Step 1: Authorize with B2
+            print_detail("Authorizing with Backblaze B2...")
+            auth_url = "https://api.backblazeb2.com/b2api/v2/b2_authorize_account"
+            
+            # Create basic auth header
+            auth_string = f"{b2_key_id}:{b2_app_key}"
+            auth_bytes = auth_string.encode('utf-8')
+            auth_b64 = b64.b64encode(auth_bytes).decode('utf-8')
+            
+            auth_response = b2_http.request(
+                'GET',
+                auth_url,
+                headers={
+                    'Authorization': f'Basic {auth_b64}',
+                    'Connection': 'close'
+                }
+            )
+            
+            if auth_response.status != 200:
+                raise Exception(f"B2 auth failed with status {auth_response.status}")
+            
+            import json as json_mod
+            auth_data = json_mod.loads(auth_response.data.decode('utf-8'))
+
+            api_url_b2 = auth_data['apiUrl']
+            auth_token = auth_data['authorizationToken']
+            download_url = auth_data['downloadUrl']
+
+            print_detail("B2 authorization successful")
+
+            # Step 2: List buckets to get the bucket ID
+            print_detail("Listing B2 buckets...")
+            buckets_payload = json_mod.dumps({"accountId": auth_data['accountId']}).encode('utf-8')
+            
+            buckets_response = b2_http.request(
+                'POST',
+                f"{api_url_b2}/b2api/v2/b2_list_buckets",
+                headers={
+                    "Authorization": auth_token,
+                    "Content-Type": "application/json",
+                    "Connection": "close"
+                },
+                body=buckets_payload
+            )
+            
+            if buckets_response.status != 200:
+                raise Exception(f"B2 list buckets failed with status {buckets_response.status}")
+            
+            buckets_data = json_mod.loads(buckets_response.data.decode('utf-8'))
+
+            # Find bucket by name
+            bucket_id = None
+            for bucket in buckets_data.get('buckets', []):
+                if bucket['bucketName'] == b2_key_name:
+                    bucket_id = bucket['bucketId']
+                    break
+
+            if not bucket_id:
+                # Use first bucket if named bucket not found
+                if buckets_data.get('buckets'):
+                    bucket_id = buckets_data['buckets'][0]['bucketId']
+                    b2_key_name = buckets_data['buckets'][0]['bucketName']
+                    print_detail(f"Using bucket: {b2_key_name}")
+                else:
+                    raise ValueError("No buckets found in account")
+
+            # Step 3: Get upload URL
+            print_detail("Getting B2 upload URL...")
+            upload_url_payload = json_mod.dumps({"bucketId": bucket_id}).encode('utf-8')
+            
+            upload_url_response = b2_http.request(
+                'POST',
+                f"{api_url_b2}/b2api/v2/b2_get_upload_url",
+                headers={
+                    "Authorization": auth_token,
+                    "Content-Type": "application/json",
+                    "Connection": "close"
+                },
+                body=upload_url_payload
+            )
+            
+            if upload_url_response.status != 200:
+                raise Exception(f"B2 get upload URL failed with status {upload_url_response.status}")
+            
+            upload_data = json_mod.loads(upload_url_response.data.decode('utf-8'))
+            upload_url_b2 = upload_data['uploadUrl']
+            upload_auth_token = upload_data['authorizationToken']
+
+            # Step 4: Upload the file
+            print_detail("Uploading image file to B2...")
+            import hashlib
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_name = f"video_transformer/{timestamp}_generated.jpg"
+
+            with open(generated_image, 'rb') as f:
+                file_content = f.read()
+                file_sha1 = hashlib.sha1(file_content).hexdigest()
+                file_size = len(file_content)
+                
+                print_detail(f"File size: {file_size / 1024:.1f} KB")
+
+                upload_headers = {
+                    "Authorization": upload_auth_token,
+                    "X-Bz-File-Name": file_name,
+                    "Content-Type": "image/jpeg",
+                    "X-Bz-Content-Sha1": file_sha1,
+                    "Content-Length": str(file_size),
+                    "Connection": "close"
+                }
+
+                upload_response = b2_http.request(
+                    'POST',
+                    upload_url_b2,
+                    headers=upload_headers,
+                    body=file_content
+                )
+                
+                if upload_response.status != 200:
+                    raise Exception(f"B2 upload failed with status {upload_response.status}: {upload_response.data.decode('utf-8')}")
+                
+                upload_result = json_mod.loads(upload_response.data.decode('utf-8'))
+
+            # Construct public URL
+            file_id = upload_result['fileId']
+            bucket_name = b2_key_name  # Using keyName as bucket name
+            image_url = f"{download_url}/file/{bucket_name}/{file_name}"
+
+            print_success(f"Image uploaded successfully to Backblaze B2")
+            print_detail(f"Image URL: {image_url}")
+            print_detail(f"File ID: {file_id}")
+
+        except Exception as e:
+            print_error(f"B2 upload failed: {str(e)}")
+            import traceback
+            print_detail(traceback.format_exc())
+
+            # CRITICAL ERROR: Don't use placeholder, raise the error
+            raise Exception(f"Failed to upload image to B2: {str(e)}. Cannot proceed with video generation without the generated image.")
+            
+        finally:
+            # Clean up B2 connection pool
             try:
-                # Get B2 credentials from environment
-                b2_key_id = os.getenv("keyID")
-                b2_key_name = os.getenv("keyName")
-                b2_app_key = os.getenv("applicationKey")
-
-                if not all([b2_key_id, b2_key_name, b2_app_key]):
-                    raise ValueError("B2 credentials not found in .env file")
-
-                # Step 1: Authorize with B2
-                auth_url = "https://api.backblazeb2.com/b2api/v2/b2_authorize_account"
-                auth_response = b2_session.get(
-                    auth_url,
-                    auth=(b2_key_id, b2_app_key),
-                    timeout=30
-                )
-                auth_response.raise_for_status()
-                auth_data = auth_response.json()
-
-                api_url_b2 = auth_data['apiUrl']
-                auth_token = auth_data['authorizationToken']
-                download_url = auth_data['downloadUrl']
-
-                print_detail("B2 authorization successful")
-
-                # Step 2: List buckets to get the bucket ID
-                buckets_response = b2_session.post(
-                    f"{api_url_b2}/b2api/v2/b2_list_buckets",
-                    headers={"Authorization": auth_token},
-                    json={"accountId": auth_data['accountId']},
-                    timeout=30
-                )
-                buckets_response.raise_for_status()
-                buckets_data = buckets_response.json()
-
-                # Find bucket by name
-                bucket_id = None
-                for bucket in buckets_data.get('buckets', []):
-                    if bucket['bucketName'] == b2_key_name:
-                        bucket_id = bucket['bucketId']
-                        break
-
-                if not bucket_id:
-                    # Use first bucket if named bucket not found
-                    if buckets_data.get('buckets'):
-                        bucket_id = buckets_data['buckets'][0]['bucketId']
-                        b2_key_name = buckets_data['buckets'][0]['bucketName']
-                        print_detail(f"Using bucket: {b2_key_name}")
-                    else:
-                        raise ValueError("No buckets found in account")
-
-                # Step 3: Get upload URL
-                upload_url_response = b2_session.post(
-                    f"{api_url_b2}/b2api/v2/b2_get_upload_url",
-                    headers={"Authorization": auth_token},
-                    json={"bucketId": bucket_id},
-                    timeout=30
-                )
-                upload_url_response.raise_for_status()
-                upload_data = upload_url_response.json()
-
-                upload_url_b2 = upload_data['uploadUrl']
-                upload_auth_token = upload_data['authorizationToken']
-
-                # Step 3: Upload the file
-                import hashlib
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                file_name = f"video_transformer/{timestamp}_generated.jpg"
-
-                with open(generated_image, 'rb') as f:
-                    file_content = f.read()
-                    file_sha1 = hashlib.sha1(file_content).hexdigest()
-
-                    upload_headers = {
-                        "Authorization": upload_auth_token,
-                        "X-Bz-File-Name": file_name,
-                        "Content-Type": "image/jpeg",
-                        "X-Bz-Content-Sha1": file_sha1
-                    }
-
-                    upload_response = b2_session.post(
-                        upload_url_b2,
-                        headers=upload_headers,
-                        data=file_content,
-                        timeout=60
-                    )
-                    upload_response.raise_for_status()
-                    upload_result = upload_response.json()
-
-                # Construct public URL
-                file_id = upload_result['fileId']
-                bucket_name = b2_key_name  # Using keyName as bucket name
-                image_url = f"{download_url}/file/{bucket_name}/{file_name}"
-
-                print_success(f"Image uploaded successfully to Backblaze B2")
-                print_detail(f"Image URL: {image_url}")
-                print_detail(f"File ID: {file_id}")
-
+                b2_http.clear()
+                del b2_http
+                gc.collect()
+                print_detail("B2 connection pool cleaned up")
             except Exception as e:
-                print_error(f"B2 upload failed: {str(e)}")
-                import traceback
-                print_detail(traceback.format_exc())
-
-                # Fallback: use a public URL placeholder
-                image_url = "https://storage.googleapis.com/magicpoint/inputs/seedance-v1-pro-fast-image-to-video-input.jpeg"
-                print_info("Using placeholder image URL - video generation may use default image")
+                print_detail(f"Error cleaning up B2 pool: {e}")
 
         # Prepare API request for IMAGE-TO-VIDEO
         api_url = "https://api.eachlabs.ai/v1/prediction/"
