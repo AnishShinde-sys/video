@@ -44,3 +44,6 @@ structlog>=23.1.0  # Structured logging
 # Data Processing
 pandas>=2.0.0  # Data manipulation
 pydantic>=2.0.0  # Data validation
+
+# System Monitoring
+psutil>=5.9.0  # Process and system monitoring

@@ -1,0 +1,14 @@
+{
+  "user_prompt": "redhat",
+  "action_prompt": "A young man with dark, curly hair is looking at the camera, wearing a red fedora-style hat with a darker band around the base. The hat sits comfortably on his head, partially obscuring some of his hair. He is wearing a dark blue zip-up sweater. The background is a paneled wooden wall with some subtle foliage-like decoration along the top edge. Soft, natural-looking lighting creates a casual, indoor atmosphere.",
+  "image_analysis": "A young person with dark curly hair and wearing a navy zip-up sweater is indoors. The background consists of a wooden door or wall paneling, with some foliage or decor along the top. The lighting is soft and diffused, suggesting natural daylight.",
+  "key_elements": [
+    "Red Fedora",
+    "Curly dark hair",
+    "Wooden paneled background",
+    "Dark Blue Zip-up Sweater",
+    "Indoor lighting"
+  ],
+  "reference_frame": "output/job_20251027_174335/frames/20251027_174335/frame_01_start_0000.jpg",
+  "timestamp": "20251027_174338"
+}

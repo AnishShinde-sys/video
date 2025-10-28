@@ -1,0 +1,14 @@
+{
+  "user_prompt": "redhat",
+  "action_prompt": "A young man with dark curly hair is looking directly at the camera, wearing a fitted, classic red fedora. The fedora sits at a slight angle, complementing his facial features. He is indoors, standing in front of a wooden paneled wall with leafy decor. He is wearing a dark blue zip-up jacket. Soft natural lighting illuminates the scene, creating a slightly mysterious yet stylish atmosphere.",
+  "image_analysis": "A young man with dark curly hair is looking directly at the camera. He is wearing a dark blue zip-up jacket. He is indoors, in front of a wooden paneled wall with some leafy decor. The lighting is soft and natural.",
+  "key_elements": [
+    "Red fedora",
+    "Dark curly hair",
+    "Wooden paneled wall",
+    "Blue zip-up jacket",
+    "Soft natural lighting"
+  ],
+  "reference_frame": "output/job_20251027_175218/frames/20251027_175218/frame_01_start_0000.jpg",
+  "timestamp": "20251027_175221"
+}

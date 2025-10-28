@@ -1,0 +1,14 @@
+{
+  "user_prompt": "redhat",
+  "action_prompt": "The young man with dark, curly hair is indoors, facing the camera. He now wears a bright red, traditional-style fez hat with a tall, cylindrical shape. The hat sits securely on top of his head, partially obscuring his hair. He wears a dark blue zip-up sweater over a gray shirt. The background features a wooden door with decorative vines.",
+  "image_analysis": "A young man with dark, curly hair is indoors. He wears a dark blue zip-up sweater over a gray shirt and looks directly at the camera. The background includes a wooden door with wall decorations.",
+  "key_elements": [
+    "Young man",
+    "Curly hair",
+    "Red fez hat",
+    "Wooden door",
+    "Indoor setting"
+  ],
+  "reference_frame": "output/job_20251027_173237/frames/20251027_173237/frame_01_start_0000.jpg",
+  "timestamp": "20251027_173240"
+}
