@@ -587,59 +587,69 @@ Maintain the same composition, perspective, and lighting quality as the referenc
             print_detail(f"[DEBUG] Calling Gemini REST API...")
             print_resource_info("BEFORE_GEMINI_API_CALL")
 
-            # Configure session with aggressive connection pooling to prevent connection leaks
-            session = requests.Session()
-            # Set very restrictive connection pool parameters
-            adapter = requests.adapters.HTTPAdapter(
-                pool_connections=1,    # Number of connection pools
-                pool_maxsize=1,        # Maximum number of connections in pool
-                max_retries=1,         # Reduced retries to prevent connection buildup
-                pool_block=True        # Block when pool is full instead of creating new connections
-            )
-            session.mount('https://', adapter)
-            session.mount('http://', adapter)
+            # Use urllib3 directly with explicit connection management to avoid requests session leaks
+            import urllib3
+            import ssl
             
-            # Set additional session parameters to prevent connection leaks
-            session.headers.update({'Connection': 'close'})  # Force connection close
+            # Create a new pool manager with strict limits
+            http = urllib3.PoolManager(
+                num_pools=1,
+                maxsize=1,
+                block=True,
+                cert_reqs=ssl.CERT_REQUIRED,
+                ca_certs=None,
+                timeout=urllib3.Timeout(connect=30.0, read=60.0)
+            )
             
             try:
-                print_detail(f"[DEBUG] Created requests session with connection pooling")
-                print_resource_info("AFTER_SESSION_CREATE")
+                print_detail(f"[DEBUG] Created urllib3 pool manager")
+                print_resource_info("AFTER_POOL_CREATE")
+                
+                # Encode request data as JSON
+                import json as json_module
+                body = json_module.dumps(request_data).encode('utf-8')
                 
                 try:
-                    response = session.post(api_url, json=request_data, timeout=60)
+                    print_detail(f"[DEBUG] Sending POST request...")
+                    response = http.request(
+                        'POST',
+                        api_url,
+                        body=body,
+                        headers={
+                            'Content-Type': 'application/json',
+                            'Connection': 'close'
+                        },
+                        retries=urllib3.Retry(total=1, connect=1, read=1)
+                    )
+                    
                     print_detail(f"[DEBUG] POST request completed")
                     print_resource_info("AFTER_API_RESPONSE")
                     
-                    response.raise_for_status()
-                    result = response.json()
+                    if response.status != 200:
+                        raise Exception(f"API returned status {response.status}: {response.data.decode('utf-8')}")
+                    
+                    result = json_module.loads(response.data.decode('utf-8'))
                     print_detail(f"[DEBUG] Response received successfully")
                     print_resource_info("AFTER_JSON_PARSE")
+                    
                 except Exception as e:
                     print_error(f"[DEBUG] API call failed: {e}")
                     print_resource_info("AFTER_API_ERROR")
                     raise
-            finally:
-                # Ensure session is properly closed with aggressive cleanup
-                try:
-                    # Close all adapters first
-                    for adapter in session.adapters.values():
-                        try:
-                            adapter.close()
-                        except:
-                            pass
                     
-                    # Close the session
-                    session.close()
-                    print_detail(f"[DEBUG] Requests session and adapters closed")
+            finally:
+                # Ensure pool manager is properly closed
+                try:
+                    http.clear()
+                    print_detail(f"[DEBUG] Cleared connection pool")
                     
                     # Force cleanup
-                    del session
+                    del http
                     gc.collect()
                     
-                    print_resource_info("AFTER_SESSION_CLOSE")
+                    print_resource_info("AFTER_POOL_CLOSE")
                 except Exception as e:
-                    print_detail(f"[DEBUG] Error closing session: {e}")
+                    print_detail(f"[DEBUG] Error closing pool: {e}")
 
             # Extract generated image from response
             print_detail(f"[DEBUG] Extracting image from response...")

@@ -207,4 +207,5 @@ if __name__ == '__main__':
 
     print("Starting AI Video Transformer Web Application...")
     print("Open http://localhost:5001 in your browser")
-    app.run(debug=True, host='0.0.0.0', port=5001, threaded=True)
+    # Disable reloader to prevent file descriptor leaks from multiple processes
+    app.run(debug=True, host='0.0.0.0', port=5001, threaded=True, use_reloader=False)
