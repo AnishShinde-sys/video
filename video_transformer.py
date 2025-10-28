@@ -36,9 +36,7 @@ import imageio.v3 as iio
 sys.path.append('/Users/anishshinde/Library/Python/3.9/lib/python/site-packages')
 
 # Google Gemini APIs
-import google.generativeai as genai_old  # For Steps 2, 4, 5 (vision/text)
-from google import genai  # For Step 3 (image generation)
-from google.genai import types
+import google.generativeai as genai  # For all Gemini operations
 
 # Terminal colors
 GREEN = '\033[92m'
@@ -175,8 +173,8 @@ class VideoTransformer:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize Gemini APIs
-        genai_old.configure(api_key=self.api_key)
-        self.vision_model = genai_old.GenerativeModel('gemini-2.0-flash')
+        genai.configure(api_key=self.api_key)
+        self.vision_model = genai.GenerativeModel('gemini-2.0-flash')
         self.image_client = None  # Lazy init for image generation
 
         print_success("Video Transformer initialized")
@@ -770,14 +768,14 @@ Maintain the same composition, perspective, and lighting quality as the referenc
         print_step(f"Uploading video: {video_path.name}")
 
         # Upload video file
-        video_file = genai_old.upload_file(str(video_path))
+        video_file = genai.upload_file(str(video_path))
         print_success(f"Uploaded: {video_path.name}")
 
         # Wait for processing
         print_step("Waiting for video processing...")
         while video_file.state.name == "PROCESSING":
             time.sleep(2)
-            video_file = genai_old.get_file(video_file.name)
+            video_file = genai.get_file(video_file.name)
 
         print_success("Video ready for ultra-detailed analysis")
 
