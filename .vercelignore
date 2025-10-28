@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+.env
+.env.local
+output/
+uploads/
+*.MP4
+*.mp4
+*.mov
+*.avi
+.git
+.gitignore
+README.md
+WEB_APP_README.md
+
