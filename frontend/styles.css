@@ -134,15 +134,16 @@ label {
   min-height: 220px;
   padding: 18px;
   border-radius: 18px;
-  border: none;
-  background: transparent;
+  border: 1.5px dashed rgba(17, 24, 39, 0.18);
+  background: var(--panel);
   cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
 }
 
 .video-box:hover,
 .video-box:focus-visible {
-  background: rgba(17, 24, 39, 0.05);
+  border-color: rgba(17, 24, 39, 0.35);
+  background: rgba(17, 24, 39, 0.03);
   transform: translateY(-1px);
 }
 
@@ -174,8 +175,8 @@ label {
 }
 
 .video-box.has-video {
-  border-style: solid;
-  border-color: rgba(17, 24, 39, 0.08);
+  border-style: dashed;
+  border-color: rgba(17, 24, 39, 0.25);
   background: var(--panel);
 }
 
