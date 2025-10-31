@@ -175,11 +175,6 @@ label {
 
 .video-box.has-video {
   border-style: solid;
-  border-color: rgba(17, 24, 39, 0.65);
-}
-
-.video-box.has-video {
-  border-style: solid;
   border-color: rgba(17, 24, 39, 0.08);
   background: var(--panel);
 }
