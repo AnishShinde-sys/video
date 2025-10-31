@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Huemo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="brand-header">
+        <img
+          src="./humeo_vertical_black_header.svg"
+          alt="Huemo"
+          class="brand-logo"
+        />
+      </header>
+
+      <section class="panel">
+        <form id="edit-form" class="form" enctype="multipart/form-data">
+          <div class="form-grid">
+            <div class="field primary">
+              <label for="video">Original Video</label>
+              <input id="video" name="video" type="file" accept="video/*" required class="sr-only" />
+              <div
+                id="video-dropzone"
+                class="video-box"
+                role="button"
+                tabindex="0"
+                aria-describedby="video-caption"
+              >
+                <video
+                  id="preview-video"
+                  class="hidden"
+                  muted
+                  playsinline
+                  loop
+                ></video>
+                <div id="video-placeholder" class="video-placeholder">
+                  <strong id="video-placeholder-title">Click to upload</strong>
+                  <span id="video-placeholder-subtitle">Choose a short video (≤10MB) to preview here.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="field secondary">
+              <label for="result-preview-video">Edited Video Preview</label>
+              <div
+                id="result-preview-box"
+                class="video-box"
+                aria-live="polite"
+              >
+                <video
+                  id="result-preview-video"
+                  class="hidden"
+                  playsinline
+                  controls
+                  loop
+                ></video>
+                <div class="video-placeholder">
+                  <strong id="result-preview-title">Awaiting result</strong>
+                  <span id="result-preview-subtitle">Submit an edit to see the processed video here.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="field prompt-field">
+            <label for="prompt">Desired Edit</label>
+            <textarea
+              id="prompt"
+              name="prompt"
+              rows="6"
+              maxlength="400"
+              placeholder="Change the car to a vintage motorcycle"
+              required
+            ></textarea>
+          </div>
+
+          <div class="form-controls">
+            <div class="field inline">
+              <label for="resolution">Output Resolution</label>
+              <select id="resolution" name="resolution">
+                <option value="720p" selected>720p (default)</option>
+                <option value="480p">480p</option>
+              </select>
+            </div>
+
+            <button type="submit" id="submit-btn">Submit Edit</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="status" class="panel hidden">
+        <div class="status-header">
+          <h2>Status</h2>
+          <span id="status-pill" class="pill">queued</span>
+        </div>
+        <p id="status-message">Preparing...</p>
+        <div class="progress">
+          <div id="progress-bar" class="progress-bar"></div>
+        </div>
+      </section>
+
+      <section id="result" class="panel hidden">
+        <h2>Result</h2>
+        <video id="result-video" controls></video>
+        <div class="actions">
+          <a id="download-link" class="button" href="#" download>Download Video</a>
+          <button id="reset-btn" type="button" class="secondary">Start Another Edit</button>
+        </div>
+      </section>
+
+      <section id="error" class="panel error hidden">
+        <h2>Something Went Wrong</h2>
+        <p id="error-message"></p>
+        <button id="retry-btn" type="button" class="secondary">Try Again</button>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
+
