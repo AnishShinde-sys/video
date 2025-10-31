@@ -22,26 +22,33 @@ const errorSection = document.getElementById("error");
 const errorMessageEl = document.getElementById("error-message");
 const retryBtn = document.getElementById("retry-btn");
 
+const HARDCODED_API_BASE = document.body.dataset.apiBase || "https://video-536c.onrender.com";
 const params = new URLSearchParams(window.location.search);
 const queryApiBase = params.get("apiBase") || params.get("api") || params.get("backend");
 const storedApiBase = window.localStorage.getItem("huemo_api_base");
-const datasetApiBase = document.body.dataset.apiBase;
 
-let resolvedApiBase = queryApiBase || datasetApiBase || storedApiBase || null;
+let resolvedApiBase = queryApiBase || storedApiBase || HARDCODED_API_BASE;
 
 if (queryApiBase) {
   window.localStorage.setItem("huemo_api_base", queryApiBase);
 }
 
-if (!resolvedApiBase) {
-  if (window.location.hostname === "localhost" && window.location.port !== "4000") {
-    resolvedApiBase = "http://localhost:4000";
-  } else {
-    resolvedApiBase = window.location.origin;
-  }
+const API_BASE_URL = resolvedApiBase.replace(/\/$/, "");
+
+function ensureJson(response) {
+  const contentType = response.headers.get("content-type") || "";
+  return contentType.toLowerCase().includes("application/json");
 }
 
-const API_BASE_URL = resolvedApiBase;
+async function parseJsonResponse(response) {
+  if (ensureJson(response)) {
+    return response.json();
+  }
+
+  const fallbackText = await response.text();
+  const message = fallbackText?.trim() || `Unexpected response (status ${response.status})`;
+  throw new Error(message);
+}
 
 let currentJobId = null;
 let pollTimer = null;
@@ -89,7 +96,7 @@ form.addEventListener("submit", async (event) => {
       body,
     });
 
-    const data = await response.json();
+    const data = await parseJsonResponse(response);
 
     if (!response.ok) {
       throw new Error(data?.error || "Failed to start edit");
@@ -178,7 +185,7 @@ function startPolling(jobId) {
   return setInterval(async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/video-edits/${jobId}`);
-      const data = await response.json();
+      const data = await parseJsonResponse(response);
 
       if (!response.ok) {
         throw new Error(data?.error || "Failed to fetch status");
@@ -244,7 +251,7 @@ function showError(message) {
   resultSection.classList.add("hidden");
   errorSection.classList.remove("hidden");
   errorMessageEl.textContent = message;
-  setResultPreviewMessage("Processing error", "Try submitting the edit again.");
+  resetResultPreview();
 }
 
 function resetUI() {
