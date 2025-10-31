@@ -35,7 +35,7 @@ python3 -m http.server 9000
 ### Backend
 
 1. Choose a Node host (Railway, Render, Fly.io, etc.).
-2. Configure build command `npm install` and start command `npm run start`.
+2. Configure build command `npm install --prefix backend` and start command `npm run start --prefix backend` (or `cd backend && npm run start`).
 3. Set environment variables from `backend/env.sample`:
    - `DECART_API_KEY`
    - optional `PORT`
