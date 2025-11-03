@@ -10,6 +10,7 @@ const resultPreviewBox = document.getElementById("result-preview-box");
 const resultPreviewVideo = document.getElementById("result-preview-video");
 const resultPreviewTitle = document.getElementById("result-preview-title");
 const resultPreviewSubtitle = document.getElementById("result-preview-subtitle");
+const resultPreviewPlaceholder = document.querySelector("#result-preview-box .video-placeholder");
 const statusSection = document.getElementById("status");
 const statusMessageEl = document.getElementById("status-message");
 const statusPill = document.getElementById("status-pill");
@@ -272,6 +273,9 @@ function updateResultPreview(fileUrl) {
   resultPreviewVideo.play().catch(() => {});
 
   resultPreviewBox.classList.add("has-video");
+  if (resultPreviewPlaceholder) {
+    resultPreviewPlaceholder.classList.add("hidden");
+  }
   setResultPreviewMessage("Preview ready", "Play the edited video above.");
 }
 
@@ -285,6 +289,10 @@ function resetResultPreview() {
 
   if (resultPreviewBox) {
     resultPreviewBox.classList.remove("has-video");
+  }
+
+  if (resultPreviewPlaceholder) {
+    resultPreviewPlaceholder.classList.remove("hidden");
   }
 
   setResultPreviewMessage("Awaiting result", "Submit an edit to see the processed video here.");
