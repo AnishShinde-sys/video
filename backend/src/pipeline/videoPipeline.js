@@ -362,6 +362,17 @@ export default class VideoPipeline {
         description: `extract frame ${index + 1}/${timestamps.length} at ${timestamp.toFixed(2)}s`
       });
 
+      if (!(await fs.pathExists(filePath))) {
+        logger.warn({ jobId: this.jobId, filePath }, 'Expected frame not created; reusing previous frame if available');
+
+        const previous = frames[frames.length - 1];
+        if (!previous) {
+          throw new Error(`FFmpeg did not produce frame ${index + 1}; no previous frame to fall back to`);
+        }
+
+        await fs.copy(previous.filePath, filePath);
+      }
+
       frames.push({ filePath, timestamp, section });
     }
 
