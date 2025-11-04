@@ -18,16 +18,17 @@ The project is optimised for Render, but you can still run it locally:
 cd backend
 npm install
 cp env.sample .env
-# populate GEMINI_API_KEY, EACHLABS_API_KEY, keyID/keyName/applicationKey, DECART_API_KEY (if used)
+# populate GEMINI_API_KEY, EACHLABS_API_KEY, keyID/keyName/applicationKey,
+# and optionally DECART_API_KEY if you still use the Decart proxy helpers
 npm run dev
 
 # Frontend
 cd ../frontend
 npm install
-npm run start  # serves on http://127.0.0.1:8080
-
-# Point the frontend at your local backend once:
-# http://127.0.0.1:8080?apiBase=http://127.0.0.1:4000
+npm run start
+# The dev server URL is printed in the terminal. If your backend runs on a different
+# origin during development, append ?apiBase=<your-backend-url> once; the app
+# remembers the override for subsequent requests.
 ```
 
 ### Render Configuration

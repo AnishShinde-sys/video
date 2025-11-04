@@ -1,309 +1,398 @@
-const form = document.getElementById("edit-form");
-const submitBtn = document.getElementById("submit-btn");
-const videoInput = document.getElementById("video");
-const videoDropzone = document.getElementById("video-dropzone");
-const videoPlaceholder = document.getElementById("video-placeholder");
-const videoPlaceholderTitle = document.getElementById("video-placeholder-title");
-const videoPlaceholderSubtitle = document.getElementById("video-placeholder-subtitle");
-const previewVideo = document.getElementById("preview-video");
-const resultPreviewBox = document.getElementById("result-preview-box");
-const resultPreviewVideo = document.getElementById("result-preview-video");
-const resultPreviewTitle = document.getElementById("result-preview-title");
-const resultPreviewSubtitle = document.getElementById("result-preview-subtitle");
-const resultPreviewPlaceholder = document.querySelector("#result-preview-box .video-placeholder");
-const statusSection = document.getElementById("status");
-const statusMessageEl = document.getElementById("status-message");
-const statusPill = document.getElementById("status-pill");
-const progressBar = document.getElementById("progress-bar");
-const resultSection = document.getElementById("result");
-const resultVideo = document.getElementById("result-video");
-const downloadLink = document.getElementById("download-link");
-const resetBtn = document.getElementById("reset-btn");
-const errorSection = document.getElementById("error");
-const errorMessageEl = document.getElementById("error-message");
-const retryBtn = document.getElementById("retry-btn");
+const getApiBaseUrl = () => {
+  const dataApiBase = document.body.getAttribute('data-api-base');
+  if (dataApiBase) {
+    return dataApiBase;
+  }
+  
+  const config = window.__APP_CONFIG__ || { apiBaseUrl: '/api' };
+  return config.apiBaseUrl;
+};
 
-const HARDCODED_API_BASE = document.body.dataset.apiBase || "https://video-536c.onrender.com";
-const params = new URLSearchParams(window.location.search);
-const queryApiBase = params.get("apiBase") || params.get("api") || params.get("backend");
-const storedApiBase = window.localStorage.getItem("huemo_api_base");
+const apiBaseUrl = (() => {
+  try {
+    const baseUrl = getApiBaseUrl();
+    return new URL(baseUrl, window.location.origin);
+  } catch (error) {
+    console.error('Invalid API base URL, falling back to /api', error);
+    return new URL('/api', window.location.origin);
+  }
+})();
 
-let resolvedApiBase = queryApiBase || storedApiBase || HARDCODED_API_BASE;
+const API_ORIGIN = apiBaseUrl.origin;
+const API_PREFIX = apiBaseUrl.pathname.replace(/\/$/, '');
 
-if (queryApiBase) {
-  window.localStorage.setItem("huemo_api_base", queryApiBase);
-}
+const buildApiUrl = (path = '') => {
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  return `${API_ORIGIN}${API_PREFIX}${normalized}`;
+};
 
-const API_BASE_URL = resolvedApiBase.replace(/\/$/, "");
+const resolveFileUrl = (path) => {
+  if (!path) return null;
+  if (/^https?:/i.test(path)) {
+    return path;
+  }
+  if (path.startsWith('/api/')) {
+    return `${API_ORIGIN}${path}`;
+  }
+  return buildApiUrl(path);
+};
 
-function ensureJson(response) {
-  const contentType = response.headers.get("content-type") || "";
-  return contentType.toLowerCase().includes("application/json");
-}
+const state = {
+  jobId: null,
+  pollInterval: null,
+  videoObjectUrl: null
+};
 
-async function parseJsonResponse(response) {
-  if (ensureJson(response)) {
-    return response.json();
+const elements = {
+  form: document.getElementById('edit-form'),
+  videoInput: document.getElementById('video'),
+  videoDropzone: document.getElementById('video-dropzone'),
+  videoPlaceholder: document.getElementById('video-placeholder'),
+  previewVideo: document.getElementById('preview-video'),
+  promptInput: document.getElementById('prompt'),
+  resolutionSelect: document.getElementById('resolution'),
+  submitBtn: document.getElementById('submit-btn'),
+  statusPanel: document.getElementById('status'),
+  statusPill: document.getElementById('status-pill'),
+  statusMessage: document.getElementById('status-message'),
+  progressBar: document.getElementById('progress-bar'),
+  resultPanel: document.getElementById('result'),
+  resultVideo: document.getElementById('result-video'),
+  downloadLink: document.getElementById('download-link'),
+  errorPanel: document.getElementById('error'),
+  errorMessage: document.getElementById('error-message'),
+  retryBtn: document.getElementById('retry-btn'),
+  resetBtn: document.getElementById('reset-btn'),
+  resultPreviewVideo: document.getElementById('result-preview-video'),
+  resultPreviewTitle: document.getElementById('result-preview-title'),
+  resultPreviewSubtitle: document.getElementById('result-preview-subtitle'),
+  resultPreviewPlaceholder: document.querySelector('#result-preview-box .video-placeholder')
+};
+
+const setHidden = (element, hidden) => {
+  if (!element) return;
+  element.classList.toggle('hidden', hidden);
+};
+
+const revokeUrl = (url) => {
+  if (url) {
+    URL.revokeObjectURL(url);
+  }
+};
+
+const resetPreview = () => {
+  revokeUrl(state.videoObjectUrl);
+  state.videoObjectUrl = null;
+
+  if (elements.previewVideo) {
+    elements.previewVideo.pause();
+    elements.previewVideo.removeAttribute('src');
+    elements.previewVideo.load();
+    setHidden(elements.previewVideo, true);
   }
 
-  const fallbackText = await response.text();
-  const message = fallbackText?.trim() || `Unexpected response (status ${response.status})`;
-  throw new Error(message);
-}
+  setHidden(elements.videoPlaceholder, false);
+};
 
-let currentJobId = null;
-let pollTimer = null;
-let previewUrl = null;
-
-if (videoDropzone) {
-  videoDropzone.addEventListener("click", () => videoInput?.click());
-  videoDropzone.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      videoInput?.click();
-    }
-  });
-}
-
-if (videoInput) {
-  videoInput.addEventListener("change", handleVideoSelection);
-}
-
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  const video = form.video.files[0];
-  const prompt = form.prompt.value.trim();
-
-  if (!video) {
-    showError("Please choose a video file before submitting.");
-    return;
+const resetResultPreview = () => {
+  if (elements.resultPreviewVideo) {
+    elements.resultPreviewVideo.pause();
+    elements.resultPreviewVideo.removeAttribute('src');
+    elements.resultPreviewVideo.load();
+    setHidden(elements.resultPreviewVideo, true);
   }
 
-  if (!prompt) {
-    showError("Prompt cannot be empty.");
-    return;
+  if (elements.resultPreviewPlaceholder) {
+    setHidden(elements.resultPreviewPlaceholder, false);
   }
 
-  resetUI();
+  if (elements.resultPreviewTitle) {
+    elements.resultPreviewTitle.textContent = 'Awaiting result';
+  }
+  if (elements.resultPreviewSubtitle) {
+    elements.resultPreviewSubtitle.textContent = 'Submit an edit to see the processed video here.';
+  }
+};
+
+const resetInterface = () => {
+  state.jobId = null;
+  if (state.pollInterval) {
+    clearInterval(state.pollInterval);
+    state.pollInterval = null;
+  }
+
+  elements.form.reset();
+  resetPreview();
   resetResultPreview();
-  toggleForm(false);
-  showStatus({ status: "queued", message: "Uploading video...", progress: 5 });
+
+  setHidden(elements.statusPanel, true);
+  setHidden(elements.resultPanel, true);
+  setHidden(elements.errorPanel, true);
+
+  if (elements.progressBar) {
+    elements.progressBar.style.width = '0%';
+  }
+  if (elements.statusPill) {
+    elements.statusPill.textContent = 'queued';
+  }
+  if (elements.statusMessage) {
+    elements.statusMessage.textContent = 'Preparing…';
+  }
+};
+
+const setSubmitting = (isSubmitting) => {
+  if (!elements.submitBtn) return;
+  elements.submitBtn.disabled = isSubmitting;
+  elements.submitBtn.textContent = isSubmitting ? 'Submitting…' : 'Submit Edit';
+};
+
+const updateStatusPanel = ({ status, progress, message }) => {
+  setHidden(elements.statusPanel, false);
+  if (elements.statusPill && status) {
+    elements.statusPill.textContent = status;
+  }
+  if (elements.statusMessage && message) {
+    elements.statusMessage.textContent = message;
+  }
+  if (elements.progressBar) {
+    const safeProgress = Math.max(0, Math.min(progress ?? 0, 100));
+    elements.progressBar.style.width = `${safeProgress}%`;
+  }
+};
+
+const showResult = (result) => {
+  if (!result) {
+    showError('Result payload missing from job response.');
+    return;
+  }
+
+  const videoInfo = result.video || {};
+  const finalUrl = resolveFileUrl(videoInfo.finalVideo || videoInfo.rawVideo);
+
+  if (!finalUrl) {
+    showError('No video URL received from the backend.');
+    return;
+  }
+
+  setHidden(elements.resultPanel, false);
+  setHidden(elements.errorPanel, true);
+
+  elements.resultVideo.src = finalUrl;
+  elements.resultVideo.load();
+  elements.downloadLink.href = finalUrl;
+
+  if (elements.resultPreviewVideo) {
+    elements.resultPreviewVideo.src = finalUrl;
+    elements.resultPreviewVideo.load();
+    elements.resultPreviewVideo.play().catch(() => {
+      /* autoplay can be blocked; ignore */
+    });
+    setHidden(elements.resultPreviewVideo, false);
+  }
+
+  if (elements.resultPreviewPlaceholder) {
+    setHidden(elements.resultPreviewPlaceholder, true);
+  }
+
+  if (elements.resultPreviewTitle) {
+    elements.resultPreviewTitle.textContent = 'Edit complete';
+  }
+  if (elements.resultPreviewSubtitle) {
+    elements.resultPreviewSubtitle.textContent = 'Review the video or download it below.';
+  }
+};
+
+const showError = (message) => {
+  setHidden(elements.errorPanel, false);
+  setHidden(elements.statusPanel, true);
+  setHidden(elements.resultPanel, true);
+  if (elements.errorMessage) {
+    elements.errorMessage.textContent = message || 'Something went wrong.';
+  }
+};
+
+const pollStatus = async () => {
+  if (!state.jobId) return;
 
   try {
-    const body = new FormData(form);
-    const response = await fetch(`${API_BASE_URL}/api/video-edits`, {
-      method: "POST",
-      body,
-    });
-
-    const data = await parseJsonResponse(response);
-
+    const response = await fetch(buildApiUrl(`/jobs/${state.jobId}`));
     if (!response.ok) {
-      throw new Error(data?.error || "Failed to start edit");
+      throw new Error(`Failed to fetch job status (HTTP ${response.status})`);
     }
 
-    currentJobId = data.jobId;
-    pollTimer = startPolling(currentJobId);
+    const job = await response.json();
+    updateStatusPanel({ status: job.status, progress: job.progress, message: job.step });
+
+    if (job.status === 'completed') {
+      clearInterval(state.pollInterval);
+      state.pollInterval = null;
+      showResult(job.result);
+    } else if (job.status === 'failed') {
+      clearInterval(state.pollInterval);
+      state.pollInterval = null;
+      showError(job.error || 'Video processing failed');
+    }
   } catch (error) {
-    showError(error.message || "Something went wrong");
-    toggleForm(true);
+    console.error('Status polling failed', error);
+    clearInterval(state.pollInterval);
+    state.pollInterval = null;
+    showError(error.message || 'Status polling failed');
   }
-});
+};
 
-resetBtn.addEventListener("click", () => {
-  if (pollTimer) clearInterval(pollTimer);
-  currentJobId = null;
-  form.reset();
-  resetVideoPreview();
-  resetResultPreview();
-  resetUI();
-  toggleForm(true);
-});
+const startPolling = () => {
+  if (state.pollInterval) {
+    clearInterval(state.pollInterval);
+  }
+  state.pollInterval = setInterval(pollStatus, 2500);
+};
 
-retryBtn.addEventListener("click", () => {
-  errorSection.classList.add("hidden");
-  toggleForm(true);
-});
-
-function handleVideoSelection() {
-  if (!videoInput?.files?.length) {
-    resetVideoPreview();
+const handleFileSelection = (file) => {
+  if (!file) {
+    resetPreview();
     return;
   }
 
-  const file = videoInput.files[0];
-  if (previewUrl) {
-    URL.revokeObjectURL(previewUrl);
+  if (!file.type.startsWith('video/')) {
+    showError('Please choose a valid video file.');
+    resetPreview();
+    return;
   }
 
-  previewUrl = URL.createObjectURL(file);
-  if (previewVideo) {
-    previewVideo.src = previewUrl;
-    previewVideo.classList.remove("hidden");
-    previewVideo.load();
-    previewVideo.play().catch(() => {});
+  if (file.size > 10 * 1024 * 1024) {
+    showError('Please choose a video that is 10MB or smaller.');
+    resetPreview();
+    return;
   }
 
-  if (videoDropzone) {
-    videoDropzone.classList.add("has-video");
+  revokeUrl(state.videoObjectUrl);
+  state.videoObjectUrl = URL.createObjectURL(file);
+
+  if (elements.previewVideo) {
+    elements.previewVideo.src = state.videoObjectUrl;
+    elements.previewVideo.load();
+    elements.previewVideo.play().catch(() => {
+      /* autoplay can be blocked; ignore */
+    });
+    setHidden(elements.previewVideo, false);
   }
 
-  if (videoPlaceholderTitle) {
-    videoPlaceholderTitle.textContent = "Selected";
-  }
-  if (videoPlaceholderSubtitle) {
-    videoPlaceholderSubtitle.textContent = file.name;
-  }
-}
+  setHidden(elements.videoPlaceholder, true);
+};
 
-function resetVideoPreview() {
-  if (previewVideo) {
-    previewVideo.pause();
-    previewVideo.removeAttribute("src");
-    previewVideo.load();
-    previewVideo.classList.add("hidden");
+const handleSubmit = async (event) => {
+  event.preventDefault();
+
+  const file = elements.videoInput.files?.[0];
+  if (!file) {
+    showError('Please choose an original video first.');
+    return;
   }
 
-  if (videoDropzone) {
-    videoDropzone.classList.remove("has-video");
+  if (file.size > 10 * 1024 * 1024) {
+    showError('Please choose a video that is 10MB or smaller.');
+    return;
   }
 
-  if (videoPlaceholderTitle) {
-    videoPlaceholderTitle.textContent = "Click to upload";
+  const prompt = elements.promptInput.value.trim();
+  if (!prompt) {
+    showError('Describe the edit you would like to apply.');
+    return;
   }
-  if (videoPlaceholderSubtitle) {
-    videoPlaceholderSubtitle.textContent = "Choose a short video (≤10MB) to preview here.";
+
+  const formData = new FormData();
+  formData.append('video', file);
+  formData.append('prompt', prompt);
+  if (elements.resolutionSelect?.value) {
+    formData.append('resolution', elements.resolutionSelect.value);
   }
 
-  if (previewUrl) {
-    URL.revokeObjectURL(previewUrl);
-    previewUrl = null;
-  }
-}
+  setSubmitting(true);
+  setHidden(elements.errorPanel, true);
+  setHidden(elements.resultPanel, true);
+  updateStatusPanel({ status: 'queued', progress: 5, message: 'Uploading video…' });
 
-function startPolling(jobId) {
-  return setInterval(async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/video-edits/${jobId}`);
-      const data = await parseJsonResponse(response);
+  try {
+    const response = await fetch(buildApiUrl('/jobs'), {
+      method: 'POST',
+      body: formData
+    });
 
-      if (!response.ok) {
-        throw new Error(data?.error || "Failed to fetch status");
-      }
+    const payload = await response.json().catch(() => ({ error: 'Unexpected response from server.' }));
 
-      updateStatus(data);
-
-      if (data.status === "completed") {
-        clearInterval(pollTimer);
-        pollTimer = null;
-        showResult(jobId);
-        toggleForm(true);
-      }
-
-      if (data.status === "failed") {
-        clearInterval(pollTimer);
-        pollTimer = null;
-        showError(data.error || "Video edit failed.");
-        toggleForm(true);
-      }
-    } catch (error) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-      showError(error.message || "Lost connection to server.");
-      toggleForm(true);
+    if (!response.ok) {
+      throw new Error(payload.error || 'Failed to start the edit.');
     }
-  }, 2000);
-}
 
-function toggleForm(enabled) {
-  submitBtn.disabled = !enabled;
-  submitBtn.textContent = enabled ? "Submit Edit" : "Submitting...";
-}
-
-function updateStatus(job) {
-  showStatus(job);
-}
-
-function showStatus({ status, message, progress }) {
-  statusSection.classList.remove("hidden");
-  errorSection.classList.add("hidden");
-  resultSection.classList.add("hidden");
-
-  statusPill.textContent = status;
-  statusMessageEl.textContent = message || "Processing";
-  progressBar.style.width = `${Math.min(progress ?? 0, 100)}%`;
-}
-
-function showResult(jobId) {
-  statusSection.classList.remove("hidden");
-  resultSection.classList.remove("hidden");
-  errorSection.classList.add("hidden");
-
-  const fileUrl = `${API_BASE_URL}/api/video-edits/${jobId}/result`;
-  resultVideo.src = fileUrl;
-  resultVideo.load();
-  downloadLink.href = fileUrl;
-  updateResultPreview(fileUrl);
-}
-
-function showError(message) {
-  statusSection.classList.add("hidden");
-  resultSection.classList.add("hidden");
-  errorSection.classList.remove("hidden");
-  errorMessageEl.textContent = message;
-  resetResultPreview();
-}
-
-function resetUI() {
-  statusSection.classList.add("hidden");
-  resultSection.classList.add("hidden");
-  errorSection.classList.add("hidden");
-  progressBar.style.width = "0%";
-  statusPill.textContent = "queued";
-  statusMessageEl.textContent = "Preparing...";
-}
-
-function updateResultPreview(fileUrl) {
-  if (!resultPreviewVideo || !resultPreviewBox) return;
-
-  resultPreviewVideo.src = fileUrl;
-  resultPreviewVideo.classList.remove("hidden");
-  resultPreviewVideo.load();
-  resultPreviewVideo.play().catch(() => {});
-
-  resultPreviewBox.classList.add("has-video");
-  if (resultPreviewPlaceholder) {
-    resultPreviewPlaceholder.classList.add("hidden");
+    state.jobId = payload.jobId;
+    startPolling();
+  } catch (error) {
+    console.error('Upload failed', error);
+    showError(error.message || 'Unable to submit edit.');
+  } finally {
+    setSubmitting(false);
   }
-  setResultPreviewMessage("Preview ready", "Play the edited video above.");
-}
+};
 
-function resetResultPreview() {
-  if (resultPreviewVideo) {
-    resultPreviewVideo.pause();
-    resultPreviewVideo.removeAttribute("src");
-    resultPreviewVideo.load();
-    resultPreviewVideo.classList.add("hidden");
+const wireDropzone = () => {
+  if (!elements.videoDropzone) return;
+
+  elements.videoDropzone.addEventListener('click', () => {
+    elements.videoInput.click();
+  });
+
+  elements.videoDropzone.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      elements.videoInput.click();
+    }
+  });
+
+  ['dragenter', 'dragover'].forEach((type) => {
+    elements.videoDropzone.addEventListener(type, (event) => {
+      event.preventDefault();
+      elements.videoDropzone.classList.add('active');
+    });
+  });
+
+  ['dragleave', 'dragend', 'drop'].forEach((type) => {
+    elements.videoDropzone.addEventListener(type, () => {
+      elements.videoDropzone.classList.remove('active');
+    });
+  });
+
+  elements.videoDropzone.addEventListener('drop', (event) => {
+    event.preventDefault();
+    const [file] = event.dataTransfer.files || [];
+    if (file) {
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      elements.videoInput.files = transfer.files;
+      handleFileSelection(file);
+    }
+  });
+};
+
+elements.form.addEventListener('submit', handleSubmit);
+
+elements.videoInput.addEventListener('change', (event) => {
+  handleFileSelection(event.target.files?.[0] || null);
+});
+
+elements.retryBtn?.addEventListener('click', () => {
+  resetInterface();
+});
+
+elements.resetBtn?.addEventListener('click', () => {
+  resetInterface();
+});
+
+window.addEventListener('beforeunload', () => {
+  revokeUrl(state.videoObjectUrl);
+  if (state.pollInterval) {
+    clearInterval(state.pollInterval);
   }
+});
 
-  if (resultPreviewBox) {
-    resultPreviewBox.classList.remove("has-video");
-  }
-
-  if (resultPreviewPlaceholder) {
-    resultPreviewPlaceholder.classList.remove("hidden");
-  }
-
-  setResultPreviewMessage("Awaiting result", "Submit an edit to see the processed video here.");
-}
-
-function setResultPreviewMessage(title, subtitle) {
-  if (resultPreviewTitle) {
-    resultPreviewTitle.textContent = title;
-  }
-  if (resultPreviewSubtitle) {
-    resultPreviewSubtitle.textContent = subtitle;
-  }
-}
-
+wireDropzone();
+resetInterface();
