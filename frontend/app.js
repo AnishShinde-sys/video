@@ -19,7 +19,8 @@ const apiBaseUrl = (() => {
 })();
 
 const API_ORIGIN = apiBaseUrl.origin;
-const API_PREFIX = apiBaseUrl.pathname.replace(/\/$/, '');
+const RAW_API_PREFIX = apiBaseUrl.pathname.replace(/\/$/, '');
+const API_PREFIX = RAW_API_PREFIX === '' ? '/api' : RAW_API_PREFIX;
 
 const buildApiUrl = (path = '') => {
   const normalized = path.startsWith('/') ? path : `/${path}`;
