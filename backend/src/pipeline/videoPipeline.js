@@ -550,13 +550,28 @@ ${frameSummaries}`;
 
     const readyFile = await this.waitForFileReady(upload.file);
 
-    const analysisPrompt = `Analyze this video to support edited lip-sync output.
+    const analysisPrompt = `You are assisting a video lip-sync pipeline. Watch the clip and return **valid JSON** with the following shape:
 
-Please respond in three clearly labelled sections:
+{
+  "transcript": [
+    { "timestamp": "MM:SS.mmm", "text": "exact words spoken", "tone": "tone | optional" }
+  ],
+  "timeline": [
+    { "timecode": "MM:SS", "mouth": "brief mouth/lip note", "head": "orientation/movement", "gesture": "notable body motion or \"none\"" }
+  ],
+  "context": {
+    "lighting": "lighting summary",
+    "camera": "camera angle / framing",
+    "environment": "setting description",
+    "mood": "overall vibe"
+  }
+}
 
-1. Transcript — For each spoken phrase, prefix the exact words with a timestamp in [MM:SS.mmm] format. Include the full script exactly as heard.
-2. Timeline — For every second, briefly note mouth movement, head orientation, and any major gestures.
-3. Context — Summarise the lighting, camera angle, setting, and overall mood in 2-3 sentences.`;
+Guidelines:
+- The transcript array must cover the full dialogue, in order, with millisecond timestamps in brackets and exact wording.
+- The timeline array should include an entry for every second of video (00:00, 00:01, …) until the end.
+- Keep values concise—one short sentence or clause per field.
+- Do not add extra keys, narration, Markdown, or commentary outside the JSON.`;
 
     const response = await this.visionModel.generateContent([
       { text: analysisPrompt },
