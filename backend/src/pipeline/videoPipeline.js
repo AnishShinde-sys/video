@@ -15,7 +15,7 @@ import { prepareJobDirectories, writeJson, relativeToJob } from '../utils/fileUt
 
 const GEMINI_TEXT_MODEL = 'gemini-2.0-flash';
 const GEMINI_IMAGE_MODEL = 'gemini-2.5-flash-image';
-const MAX_GEMINI_REFERENCE_FRAMES = 5;
+const MAX_GEMINI_REFERENCE_FRAMES = 1;
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 ffmpeg.setFfprobePath(ffprobeInstaller.path);
@@ -550,52 +550,13 @@ ${frameSummaries}`;
 
     const readyFile = await this.waitForFileReady(upload.file);
 
-    const analysisPrompt = `Analyze this video in EXTREME detail. Provide second-by-second tracking of EVERYTHING that happens.
+    const analysisPrompt = `Analyze this video to support edited lip-sync output.
 
-## PART 1: COMPLETE SPEECH TRANSCRIPTION - **CRITICAL REQUIREMENT**
-**IMPORTANT: This is the MOST CRITICAL part of the analysis. The video generation will use this transcript.**
+Please respond in three clearly labelled sections:
 
-Transcribe EVERY SINGLE WORD spoken with EXACT timestamps in [MM:SS.milliseconds] format.
-**YOU MUST TRANSCRIBE EXACTLY WHAT IS SAID - DO NOT SKIP OR SUMMARIZE ANY WORDS.**
-
-For each word/phrase, include:
-- [Timestamp] "Exact words spoken" - Tone, Volume, Pace
-- Tone (happy, sad, excited, angry, sarcastic, neutral, etc.)
-- Volume (loud, normal, soft, whisper)
-- Pace (fast, normal, slow)
-- Emphasis or stress on specific words
-- Pauses and their duration
-
-After the detailed transcription, provide:
-**FULL TRANSCRIPT (for video generation):**
-Provide the complete spoken text as one continuous paragraph with all the exact words that must be said in the generated video.
-
-## PART 2: SECOND-BY-SECOND MOUTH MOVEMENTS
-For EVERY second of the video, describe mouth, lips, tongue, teeth, jaw, and whether speaking.
-
-## PART 3: SECOND-BY-SECOND EYE TRACKING
-For EVERY second track direction, blinks, movement, pupil size, eyelid position, and eye contact.
-
-## PART 4: SECOND-BY-SECOND HEAD MOVEMENTS
-Document head position, movement, and angles every second.
-
-## PART 5: SECOND-BY-SECOND BODY MOVEMENTS
-Document posture, arms, hands, torso, and distance every second.
-
-## PART 6: FACIAL EXPRESSIONS (DETAILED)
-Track all facial expression changes with intensity and micro-expressions.
-
-## PART 7: SYNCHRONIZED TIMELINE
-Combine speech, mouth, eyes, head, body, expression for every second.
-
-## PART 8: SCENE & ENVIRONMENT
-Describe duration, frames, resolution, lighting, background, foreground, camera angle, movement, depth of field, composition.
-
-## PART 9: AUDIO ANALYSIS
-Document quality, background noise, acoustics, levels, non-speech sounds, silence with timestamps.
-
-## PART 10: METADATA & SUMMARY
-Summary metrics including duration, word count, actions, emotions, key moments, narrative.`;
+1. Transcript — For each spoken phrase, prefix the exact words with a timestamp in [MM:SS.mmm] format. Include the full script exactly as heard.
+2. Timeline — For every second, briefly note mouth movement, head orientation, and any major gestures.
+3. Context — Summarise the lighting, camera angle, setting, and overall mood in 2-3 sentences.`;
 
     const response = await this.visionModel.generateContent([
       { text: analysisPrompt },
