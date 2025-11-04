@@ -1,15 +1,24 @@
 services:
   - type: web
-    name: huemo-backend
+    name: video
     env: node
     rootDir: backend
     buildCommand: npm install
     startCommand: npm run start
     plan: free
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DECART_API_KEY
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: EACHLABS_API_KEY
+        sync: false
+      - key: keyID
+        sync: false
+      - key: keyName
+        sync: false
+      - key: applicationKey
         sync: false
 
 staticSites:
